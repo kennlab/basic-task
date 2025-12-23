@@ -21,7 +21,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "experiment", git = "https://www.github.com/jselvan/experiment?rev=lab" },
+    { name = "experiment", git = "https://www.github.com/jselvan/experiment?rev=b3915135ea920e3b999caf98760b0254ec1b012c" },
     { name = "flask", specifier = ">=3.1.2" },
     { name = "flask-socketio", specifier = ">=5.5.1" },
     { name = "pandas", specifier = ">=2.3.3" },
@@ -70,7 +70,7 @@ wheels = [
 [[package]]
 name = "experiment"
 version = "0.3.0"
-source = { git = "https://www.github.com/jselvan/experiment?rev=lab#6af08a58b24954fb5a6cbfbf8184e116510cb436" }
+source = { git = "https://www.github.com/jselvan/experiment?rev=b3915135ea920e3b999caf98760b0254ec1b012c#b3915135ea920e3b999caf98760b0254ec1b012c" }
 dependencies = [
     { name = "flask" },
     { name = "flask-socketio" },

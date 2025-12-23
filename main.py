@@ -2,6 +2,7 @@ from experiment.experiments.adapters import *
 from experiment.experiments.scene import Scene
 from experiment.manager import Manager
 from experiment.engine.pygame import PygameManager
+from experiment.trial import Trial, TrialResult
 
 from pathlib import Path
 import time
@@ -10,7 +11,7 @@ SIZE = (200, 200)
 PAD = 100
 ITI = 1.0
 
-class Trial:
+class BasicTrial(Trial):
     DEFAULT_REWARD_PARAMS = {
         'duration': 0.5,
         'interpulse_interval': 0.2,
@@ -26,6 +27,7 @@ class Trial:
     def get_target(self):
         raise NotImplementedError
     def run(self, mgr: Manager):
+        data = {}
         im = self.get_target()
         ta = TouchAdapter(
             None,
@@ -35,20 +37,21 @@ class Trial:
         scene = Scene(mgr, ta)
         scene.run()
         if scene.quit:
-            return False
+            return TrialResult(continue_session=False, outcome='quit', data=data)
         if ta.chosen == 'target':
-            mgr.record(outcome='correct')
+            outcome = 'correct'
             mgr.renderer.set_background('GREEN')
             mgr.good_monkey(**self.reward_params)
             mgr.renderer.set_background()
         else:
-            mgr.record(outcome='incorrect')
+            outcome = 'incorrect'
             mgr.renderer.set_background('RED')
             time.sleep(0.5)
             mgr.renderer.set_background()
-        return True
+        mgr.record(outcome=outcome)
+        return TrialResult(continue_session=True, outcome=outcome, data=data)
 
-class ImageTrial(Trial):
+class ImageTrial(BasicTrial):
     def __init__(self, image_path, position, size=SIZE, reward_params=None):
         super().__init__(position, size, reward_params)
         self.image_path = image_path
@@ -61,7 +64,7 @@ class ImageTrial(Trial):
         )
         return im
 
-class RectTrial(Trial):
+class RectTrial(BasicTrial):
     def __init__(self, colour, position, size=SIZE, reward_params=None):
         super().__init__(position, size, reward_params)
         self.colour = colour
@@ -76,37 +79,12 @@ class RectTrial(Trial):
     
 import pandas as pd
 def get_trial(mgr, taskstate=None):
-    IMAGE = 'C:/Users/Administrator/Desktop/task01/stimuli/an.png'
-    # ANALYTIC METHOD
-    # beh = pd.DataFrame(mgr.datastore.records)
-    # if beh.iloc[-5:]['outcome'].value_counts()['correct'] >= 3: 
-    #     params = dict(
-    #         trialtype = 'rect',
-    #         position = (300, 300),
-    #         size = (300, 300),
-    #         colour = (0, 255, 0)
-    #     )
-    # else:
-    #     params = dict(
-    #         trialtype = 'image',
-    #         position = (600, 300),
-    #         size = (300, 300),
-    #         image_path = IMAGE
-    #     )
-
-    # RANDOM METHOD
-    import random
     params = dict(
-        trialtype = random.choice(['image', 'rect']),
-        position = (random.randint(200, 1166), random.randint(200, 568)),
-        size = (300, 300)
+        trialtype = 'rect',
+        position = (1080/2, 1920/2),
+        size = (1080, 1920),
+        colour = (255,0,0)
     )
-    if params['trialtype'] == 'image':
-        params['image_path'] = IMAGE
-    else:
-        params['colour'] = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
-
-
     if params['trialtype'] == 'image':
         trial = ImageTrial(params['image_path'], params['position'], size=params['size'])
     else:
@@ -115,9 +93,9 @@ def get_trial(mgr, taskstate=None):
     return trial
 
 def main(monkey):
-    SIZE = 1366, 768
-    FULLSCREEN = False
-    DISPLAY = 1
+    SIZE = 1080, 1920
+    FULLSCREEN = True
+    DISPLAY = 0
     if monkey is not None:
         data_dir = Path('data') / monkey
     else:
@@ -149,11 +127,14 @@ def main(monkey):
         }
     )
 
-    continue_experiment = True
-    taskstate = {} # You can use this to store info about the task between trials
-    while continue_experiment:
+    continue_session = True
+    taskstate = {'correct': []} # You can use this to store info about the task between trials
+    while continue_session:
         trial = get_trial(mgr, taskstate)
-        continue_experiment = mgr.run_trial(trial)
+        mgr.record(block=1, block_number=1)
+        result = mgr.run_trial(trial)
+        continue_session = result.continue_session
+        taskstate['correct'].append(result.outcome=='correct')
         time.sleep(ITI)
     mgr.cleanup()
 if __name__ == '__main__':

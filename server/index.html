@@ -6,77 +6,14 @@
     <title>Experiment Controller</title>
     <script src="{{ url_for('static', filename='socketio.min.js') }}"></script>
     <script src="{{ url_for('static', filename='plotly.min.js') }}"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background-color: #f9f9f9;
-    }
-    h1, h2 {
-      color: #333;
-    }
-    img {
-      border: 2px solid #ccc;
-      border-radius: 6px;
-      margin-bottom: 10px;
-    }
-    button {
-      margin: 4px;
-      padding: 8px 14px;
-      border-radius: 6px;
-      border: none;
-      background: #0077cc;
-      color: white;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #005fa3;
-    }
-    #info {
-      margin-top: 10px;
-      background: #fff;
-      padding: 10px;
-      border-radius: 6px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    #info p {
-      display: inline-block;
-    }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-top: 10px;
-      background: white;
-    }
-    th, td {
-      padding: 8px;
-      border: 1px solid #ccc;
-      text-align: center;
-    }
-    th {
-      background-color: #efefef;
-    }
-    #plot {
-      margin-top: 20px;
-    }
-  </style>
 </head>
 <body>
-  <h1>Experiment Controller Test</h1>
-  <div style="display: flex; gap: 40px;">
-    <div>
-      <h2>Subject Screen</h2>
-      <img src="/screen" width="640">
-    </div>
-    <div id="plot">
-      <h2>Plot</h2>
-      <div id="outcome-plot" style="height:400px;"></div>
-    </div>
-  </div>
+  <h1>Experiment Controller</h1>
+  <img src="/screen" width="640">
   <h2>Controls</h2>
   <button onclick="sendCommand('goodmonkey')">Good Monkey!</button>
   <button onclick="sendCommand('quit')">Stop Task</button>
-  
+
   <div id="info">
     <h2>Current Trial Info</h2>
     <p><b>Trial ID:</b> <span id="trialid"></span></p>
@@ -107,92 +44,52 @@
   <p id="response"></p>
 </body>
 <script src="{{ url_for('static', filename='main.js') }}"></script>
-  <script>
-    function updatePlot(data) {
-    //   const trials = Object.values(data);
-    //   const outcomes = trials.map(t => t.outcome || 'none');
-    //   const outcomeTypes = ['correct', 'error', 'timeout'];
-    //   const x = [];
-    //   const y = { correct: [], error: [], timeout: [] };
-    //   const windowSize = Math.max(0, Math.min(20, outcomes.length-3));
-    //   console.log('Window size:', windowSize);
-    //   console.log('Outcomes:', outcomes);
-    //   console.log('X:', x);
-    //   console.log('Y:', y);
-
-    //   for (let i = 0; i < outcomes.length - windowSize; i++) {
-    //     const window = outcomes.slice(i, i + windowSize);
-    //     x.push(i);
-    //     outcomeTypes.forEach(o => {
-    //       const count = window.filter(w => w === o).length;
-    //       y[o].push(count / window.length);
-    //     });
-    //   }
-
-    //   const traces = outcomeTypes.map(o => ({
-    //     x: x,
-    //     y: y[o],
-    //     mode: 'lines',
-    //     name: o
-    //   }));
-
-    //   Plotly.newPlot('outcome-plot', traces, {
-    //     margin: { t: 20 },
-    //     xaxis: { title: 'Trial #'},
-    //     yaxis: { title: 'Proportion', range: [0, 1] }
-    //   });
-    }
-
+<script>
+    
     function updateDisplay(data) {
-    //   if (!data || Object.keys(data).length === 0) return;
-    //   // --- Get the latest trial ---
-    //   const lastKey = Math.max(...Object.keys(data).map(k => parseInt(k)));
-    //   const lastTrial = data[lastKey];
-    //   document.getElementById('trialid').textContent = lastTrial.trialid ?? 'N/A';
-    //   document.getElementById('condition').textContent = lastTrial.condition ?? 'N/A';
-    //   document.getElementById('block').textContent = lastTrial.block ?? 'N/A';
-    //   document.getElementById('block_number').textContent = lastTrial.block_number ?? 'N/A';
-    //   // --- Aggregate counts per block ---
-    //   const summary = {};
-    //   for (const key in data) {
-    //     const trial = data[key];
-    //     const b = trial.block_number;
-    //     if (!summary[b]) {
-    //       summary[b] = { block: trial.block, correct: 0, error: 0, timeout: 0, optTrue: 0, optFalse: 0 };
-    //     }
-    //     if (trial.outcome) {
-    //       if (trial.outcome === 'correct') summary[b].correct++;
-    //       else if (trial.outcome === 'error') summary[b].error++;
-    //       else if (trial.outcome === 'timeout') summary[b].timeout++;
-    //     }
-    //     if (trial.optimal === true) summary[b].optTrue++;
-    //     else if (trial.optimal === false) summary[b].optFalse++;
-    //   }
-    //   // --- Update table ---
-    //   const tbody = document.querySelector('#summary-table tbody');
-    //   tbody.innerHTML = '';
-    //   for (const b in summary) {
-    //     const s = summary[b];
-    //     const row = `<tr>
-    //       <td>${b}</td>
-    //       <td>${s.block}</td>
-    //       <td>${s.correct}</td>
-    //       <td>${s.error}</td>
-    //       <td>${s.timeout}</td>
-    //       <td>${s.optTrue}</td>
-    //       <td>${s.optFalse}</td>
-    //     </tr>`;
-    //     tbody.innerHTML += row;
-    //   }
-    //   tbody.innerHTML += `<tr>
-    //     <td colspan="2"><b>Total</b></td>
-    //     <td><b>${Object.values(summary).reduce((a,b) => a + b.correct, 0)}</b></td>
-    //     <td><b>${Object.values(summary).reduce((a,b) => a + b.error, 0)}</b></td>
-    //     <td><b>${Object.values(summary).reduce((a,b) => a + b.timeout, 0)}</b></td>
-    //     <td><b>${Object.values(summary).reduce((a,b) => a + b.optTrue, 0)}</b></td>
-    //     <td><b>${Object.values(summary).reduce((a,b) => a + b.optFalse, 0)}</b></td>
-    //   </tr>`;
-    //   updatePlot(data);
+      if (!data || Object.keys(data).length === 0) return;
+      // --- Get the latest trial ---
+      const lastKey = Math.max(...Object.keys(data).map(k => parseInt(k)));
+      const lastTrial = data[lastKey];
+      document.getElementById('trialid').textContent = lastTrial.trialid ?? 'N/A';
+      document.getElementById('condition').textContent = lastTrial.condition ?? 'N/A';
+      document.getElementById('block').textContent = lastTrial.block ?? 'N/A';
+      document.getElementById('block_number').textContent = lastTrial.block_number ?? 'N/A';
+      // --- Aggregate counts per block ---
+      const summary = {};
+      for (const key in data) {
+        const trial = data[key];
+        const b = trial.block_number;
+        if (!summary[b]) {
+          summary[b] = { block: trial.block, correct: 0, error: 0, timeout: 0 };
+        }
+        if (trial.outcome) {
+          if (trial.outcome === 'correct') summary[b].correct++;
+          else if (trial.outcome === 'error') summary[b].error++;
+          else if (trial.outcome === 'timeout') summary[b].timeout++;
+        }
+      }
+      // --- Update table ---
+      const tbody = document.querySelector('#summary-table tbody');
+      tbody.innerHTML = '';
+      for (const b in summary) {
+        const s = summary[b];
+        const row = `<tr>
+          <td>${b}</td>
+          <td>${s.block}</td>
+          <td>${s.correct}</td>
+          <td>${s.error}</td>
+          <td>${s.timeout}</td>
+        </tr>`;
+        tbody.innerHTML += row;
+      }
+      tbody.innerHTML += `<tr>
+        <td colspan="2"><b>Total</b></td>
+        <td><b>${Object.values(summary).reduce((a,b) => a + b.correct, 0)}</b></td>
+        <td><b>${Object.values(summary).reduce((a,b) => a + b.error, 0)}</b></td>
+        <td><b>${Object.values(summary).reduce((a,b) => a + b.timeout, 0)}</b></td>
+      </tr>`;
+      updatePlot(data);
     }
 
     function fetchBehaviour() {
@@ -202,5 +99,5 @@
             updateDisplay(data)
         })
     }
-  </script>
+</script>
 </html>
