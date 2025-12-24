@@ -11,8 +11,10 @@
   <h1>Experiment Controller</h1>
   <img src="/screen" width="640">
   <h2>Controls</h2>
-  <button onclick="sendCommand('goodmonkey')">Good Monkey!</button>
-  <button onclick="sendCommand('quit')">Stop Task</button>
+  <button onclick="sendCommand({'do': 'reward'})">Good Monkey!</button>
+  <button onclick="sendCommand({'do': 'quit'})">Stop Task</button>
+  <button onclick="sendCommand({'do': 'pump_on'})">Pump On</button>
+  <button onclick="sendCommand({'do': 'pump_off'})">Pump Off</button>
 
   <div id="info">
     <h2>Current Trial Info</h2>
@@ -43,61 +45,73 @@
 
   <p id="response"></p>
 </body>
-<script src="{{ url_for('static', filename='main.js') }}"></script>
 <script>
-    
-    function updateDisplay(data) {
-      if (!data || Object.keys(data).length === 0) return;
-      // --- Get the latest trial ---
-      const lastKey = Math.max(...Object.keys(data).map(k => parseInt(k)));
-      const lastTrial = data[lastKey];
-      document.getElementById('trialid').textContent = lastTrial.trialid ?? 'N/A';
-      document.getElementById('condition').textContent = lastTrial.condition ?? 'N/A';
-      document.getElementById('block').textContent = lastTrial.block ?? 'N/A';
-      document.getElementById('block_number').textContent = lastTrial.block_number ?? 'N/A';
-      // --- Aggregate counts per block ---
-      const summary = {};
-      for (const key in data) {
-        const trial = data[key];
-        const b = trial.block_number;
-        if (!summary[b]) {
-          summary[b] = { block: trial.block, correct: 0, error: 0, timeout: 0 };
-        }
-        if (trial.outcome) {
-          if (trial.outcome === 'correct') summary[b].correct++;
-          else if (trial.outcome === 'error') summary[b].error++;
-          else if (trial.outcome === 'timeout') summary[b].timeout++;
-        }
-      }
-      // --- Update table ---
-      const tbody = document.querySelector('#summary-table tbody');
-      tbody.innerHTML = '';
-      for (const b in summary) {
-        const s = summary[b];
-        const row = `<tr>
-          <td>${b}</td>
-          <td>${s.block}</td>
-          <td>${s.correct}</td>
-          <td>${s.error}</td>
-          <td>${s.timeout}</td>
-        </tr>`;
-        tbody.innerHTML += row;
-      }
-      tbody.innerHTML += `<tr>
-        <td colspan="2"><b>Total</b></td>
-        <td><b>${Object.values(summary).reduce((a,b) => a + b.correct, 0)}</b></td>
-        <td><b>${Object.values(summary).reduce((a,b) => a + b.error, 0)}</b></td>
-        <td><b>${Object.values(summary).reduce((a,b) => a + b.timeout, 0)}</b></td>
-      </tr>`;
-      updatePlot(data);
-    }
+  var socket = io.connect("http://" + document.domain + ":" + location.port);
 
-    function fetchBehaviour() {
-        fetch('/behaviour_summary')
-        .then(response=>response.json())
-        .then(data => {
-            updateDisplay(data)
-        })
+  function sendCommand(action) {
+      socket.emit('command', action);
+  }
+  socket.on('response', function(data) {
+      document.getElementById("response").innerText = data.message;
+  });
+
+  function updateDisplay(data) {
+    if (!data || Object.keys(data).length === 0) return;
+    // --- Get the latest trial ---
+    const lastKey = Math.max(...Object.keys(data).map(k => parseInt(k)));
+    const lastTrial = data[lastKey];
+    document.getElementById('trialid').textContent = lastTrial.trialid ?? 'N/A';
+    document.getElementById('condition').textContent = lastTrial.condition ?? 'N/A';
+    document.getElementById('block').textContent = lastTrial.block ?? 'N/A';
+    document.getElementById('block_number').textContent = lastTrial.block_number ?? 'N/A';
+    // --- Aggregate counts per block ---
+    const summary = {};
+    for (const key in data) {
+      const trial = data[key];
+      const b = trial.block_number;
+      if (!summary[b]) {
+        summary[b] = { block: trial.block, correct: 0, error: 0, timeout: 0 };
+      }
+      if (trial.outcome) {
+        if (trial.outcome === 'correct') summary[b].correct++;
+        else if (trial.outcome === 'error') summary[b].error++;
+        else if (trial.outcome === 'timeout') summary[b].timeout++;
+      }
     }
+    // --- Update table ---
+    const tbody = document.querySelector('#summary-table tbody');
+    tbody.innerHTML = '';
+    for (const b in summary) {
+      const s = summary[b];
+      const row = `<tr>
+        <td>${b}</td>
+        <td>${s.block}</td>
+        <td>${s.correct}</td>
+        <td>${s.error}</td>
+        <td>${s.timeout}</td>
+      </tr>`;
+      tbody.innerHTML += row;
+    }
+    tbody.innerHTML += `<tr>
+      <td colspan="2"><b>Total</b></td>
+      <td><b>${Object.values(summary).reduce((a,b) => a + b.correct, 0)}</b></td>
+      <td><b>${Object.values(summary).reduce((a,b) => a + b.error, 0)}</b></td>
+      <td><b>${Object.values(summary).reduce((a,b) => a + b.timeout, 0)}</b></td>
+    </tr>`;
+    // updatePlot(data);
+  }
+
+  function fetchBehaviour() {
+      fetch('/behaviour_summary')
+      .then(response=>response.json())
+      .then(data => {
+          updateDisplay(data)
+      })
+  }
+    
+  socket.on('trial_end', function(data) {
+      fetchBehaviour()
+  })
+  fetchBehaviour()
 </script>
 </html>

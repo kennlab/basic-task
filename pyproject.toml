@@ -13,4 +13,4 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-experiment = { git = "https://www.github.com/jselvan/experiment", rev = "b3915135ea920e3b999caf98760b0254ec1b012c" }
+experiment = { git = "https://www.github.com/jselvan/experiment", rev = "lab" }
