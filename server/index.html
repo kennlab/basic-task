@@ -16,6 +16,15 @@
   <button onclick="sendCommand({'do': 'pump_on'})">Pump On</button>
   <button onclick="sendCommand({'do': 'pump_off'})">Pump Off</button>
 
+  <h2>Update Variables</h2>
+  <form id="vars-form">
+    <label for="default_reward_duration">Reward Duration:</label>
+    <input type="number" id="default_reward_duration" name="default_reward_duration" step="0.1" value="0.5" />
+    <label for="size">Size:</label>
+    <input type="text" id="size" name="size" value="1080, 1920" />
+    <button type="submit">Update Variables</button>
+  </form>
+
   <div id="info">
     <h2>Current Trial Info</h2>
     <p><b>Trial ID:</b> <span id="trialid"></span></p>
@@ -108,6 +117,33 @@
           updateDisplay(data)
       })
   }
+  
+  // --- Variables update form handler ---
+  (function() {
+    const varsForm = document.getElementById('vars-form');
+    if (!varsForm) return;
+    varsForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const formData = new FormData(varsForm);
+      const variables = {};
+      for (const [key, value] of formData.entries()) {
+        const trimmed = (value || '').toString().trim();
+        if (trimmed.includes(',')) {
+          // Handle as array
+          const arr = trimmed.split(',').map(item => {
+            const trimmed_item = item.trim();
+            const num = Number(trimmed_item);
+            return (trimmed_item !== '' && !isNaN(num)) ? num : trimmed_item;
+          });
+          variables[key] = arr;
+          continue;
+        }
+        const num = Number(trimmed);
+        variables[key] = (trimmed !== '' && !isNaN(num)) ? num : value;
+      }
+      sendCommand({ do: 'update_variables', variables: variables });
+    });
+  })();
     
   socket.on('trial_end', function(data) {
       fetchBehaviour()

@@ -25,7 +25,7 @@ if __name__ == "__main__":
     overrides = {}
     if '--debug' in sys.argv:
         overrides['strict_mode'] = False
-        overrides['display'] = {'fullscreen': False, 'size': (800, 600)}
+        overrides['display'] = {'fullscreen': False}
     elif '--strict' in sys.argv:
         overrides['strict_mode'] = True
 
