@@ -95,17 +95,3 @@ class RectTrial(BasicTrial):
             size=self.size
         )
         return im
-    
-def get_trial(mgr, taskstate=None):
-    params = dict(
-        trialtype = 'rect',
-        position = (1080/2, 1920/2),
-        size = (1080, 1920),
-        colour = (255,0,0)
-    )
-    if params['trialtype'] == 'image':
-        trial = ImageTrial(params['image_path'], params['position'], size=params['size'])
-    else:
-        trial = RectTrial(params['colour'], params['position'], size=params['size'])
-    mgr.record(**params)
-    return trial
