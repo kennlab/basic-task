@@ -1,153 +1,421 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Experiment Controller</title>
-    <script src="{{ url_for('static', filename='socketio.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='plotly.min.js') }}"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Basic task monitor</title>
+  <script src="{{ url_for('static', filename='socketio.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='plotly.min.js') }}"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --panel: #141b2d;
+      --panel-2: #1a2338;
+      --line: #2c3853;
+      --muted: #96a2b8;
+      --text: #eef3ff;
+      --accent: #54d49a;
+      --accent-soft: rgba(84, 212, 154, 0.16);
+      --danger: #ff7b7b;
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 0.65rem 0.9rem;
+      background: var(--panel-2);
+      color: var(--text);
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #07150f; font-weight: 700; }
+    button.danger { color: var(--danger); }
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.6rem 0.7rem;
+      background: #0d1424;
+      color: var(--text);
+    }
+
+    .shell { max-width: 1500px; margin: 0 auto; padding: 1.25rem; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+    h1, h2, p { margin-top: 0; }
+    h1 { margin-bottom: 0.2rem; font-size: clamp(1.35rem, 3vw, 2rem); }
+    h2 { margin-bottom: 1rem; font-size: 1rem; }
+    .muted { color: var(--muted); }
+    .live { display: flex; align-items: center; gap: 0.5rem; color: var(--muted); white-space: nowrap; }
+    .live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 5px var(--accent-soft); }
+    .live-dot.offline { background: var(--danger); box-shadow: none; }
+
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem; }
+    .stat, .card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+    .stat { padding: 1rem; }
+    .stat-label { margin-bottom: 0.35rem; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .stat-value { overflow: hidden; font-size: 1.65rem; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+    .stat-detail { margin-top: 0.25rem; color: var(--muted); font-size: 0.8rem; }
+
+    .grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.8fr); gap: 0.75rem; }
+    .card { padding: 1rem; min-width: 0; }
+    .activity-card { grid-column: 1 / -1; }
+    .activity-header { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 0.5rem; }
+    .activity-header h2 { margin-bottom: 0; }
+    .chart-controls { display: grid; grid-template-columns: minmax(110px, 0.6fr) minmax(205px, 1fr) minmax(205px, 1fr); gap: 0.65rem; }
+    .chart-controls label { margin-bottom: 0.25rem; }
+    #activity-plot { width: 100%; height: 360px; }
+    .screen-frame { overflow: hidden; aspect-ratio: 16 / 10; border: 1px solid var(--line); border-radius: 10px; background: #05070c; }
+    .screen-frame img { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; margin-top: 1rem; }
+    label { display: block; margin-bottom: 0.35rem; color: var(--muted); font-size: 0.8rem; }
+    .form-grid button { align-self: end; }
+    #response { min-height: 1.25rem; margin: 0.7rem 0 0; color: var(--muted); font-size: 0.85rem; }
+
+    .table-wrap { max-height: 410px; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { padding: 0.65rem 0.5rem; border-bottom: 1px solid var(--line); text-align: left; }
+    th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    td.numeric { text-align: right; font-variant-numeric: tabular-nums; }
+    .empty { padding: 2rem 0; color: var(--muted); text-align: center; }
+
+    @media (max-width: 900px) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid { grid-template-columns: 1fr; }
+      .activity-card { grid-column: auto; }
+      .activity-header { align-items: stretch; flex-direction: column; }
+    }
+    @media (max-width: 520px) {
+      .shell { padding: 0.75rem; }
+      header { align-items: flex-start; flex-direction: column; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .stat-value { font-size: 1.3rem; }
+      .form-grid { grid-template-columns: 1fr; }
+      .chart-controls { grid-template-columns: 1fr; }
+      #activity-plot { height: 310px; }
+    }
+  </style>
 </head>
 <body>
-  <h1>Experiment Controller</h1>
-  <img src="/screen" width="640">
-  <h2>Controls</h2>
-  <button onclick="sendCommand({'do': 'reward'})">Good Monkey!</button>
-  <button onclick="sendCommand({'do': 'quit'})">Stop Task</button>
-  <button onclick="sendCommand({'do': 'pump_on'})">Pump On</button>
-  <button onclick="sendCommand({'do': 'pump_off'})">Pump Off</button>
+  <main class="shell">
+    <header>
+      <div>
+        <h1>Basic task monitor</h1>
+        <div class="muted">Correct responses and task activity</div>
+      </div>
+      <div class="live"><span id="live-dot" class="live-dot"></span><span id="connection-state">Live</span></div>
+    </header>
 
-  <h2>Update Variables</h2>
-  <form id="vars-form">
-    <label for="default_reward_duration">Reward Duration:</label>
-    <input type="number" id="default_reward_duration" name="default_reward_duration" step="0.1" value="0.5" />
-    <label for="size">Size:</label>
-    <input type="text" id="size" name="size" value="1080, 1920" />
-    <button type="submit">Update Variables</button>
-  </form>
+    <section class="stats" aria-label="Task summary">
+      <div class="stat">
+        <div class="stat-label">Correct today</div>
+        <div class="stat-value" id="correct-today">0</div>
+        <div class="stat-detail">available session data</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Correct last hour</div>
+        <div class="stat-value" id="correct-hour">0</div>
+        <div class="stat-detail">rolling 60 minutes</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Current block type</div>
+        <div class="stat-value" id="current-block">—</div>
+        <div class="stat-detail" id="current-block-detail">No trials yet</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Last correct response</div>
+        <div class="stat-value" id="last-correct">—</div>
+        <div class="stat-detail" id="last-trial-detail">No trials yet</div>
+      </div>
+    </section>
 
-  <div id="info">
-    <h2>Current Trial Info</h2>
-    <p><b>Trial ID:</b> <span id="trialid"></span></p>
-    <p><b>Condition:</b> <span id="condition"></span></p>
-    <p><b>Block:</b> <span id="block"></span></p>
-    <p><b>Block Number:</b> <span id="block_number"></span></p>
-  </div>
+    <section class="grid">
+      <article class="card activity-card">
+        <div class="activity-header">
+          <h2 id="activity-title">Correct trials per 15 minutes</h2>
+          <div class="chart-controls" aria-label="Activity chart controls">
+            <div>
+              <label for="interval-minutes">Interval (minutes)</label>
+              <input type="number" id="interval-minutes" min="1" step="1" value="15">
+            </div>
+            <div>
+              <label for="range-start">From</label>
+              <input type="datetime-local" id="range-start" step="1">
+            </div>
+            <div>
+              <label for="range-end">To</label>
+              <input type="datetime-local" id="range-end" step="1">
+            </div>
+          </div>
+        </div>
+        <div id="activity-plot" aria-label="Correct trials during the selected time range"></div>
+      </article>
 
-  <div id="summary">
-    <h2>Block Summary</h2>
-    <table id="summary-table">
-      <thead>
-        <tr>
-          <th>Block Number</th>
-          <th>Block</th>
-          <th>Outcome: Correct</th>
-          <th>Outcome: Error</th>
-          <th>Outcome: Timeout</th>
-          <th>Optimal: True</th>
-          <th>Optimal: False</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
+      <article class="card">
+        <h2>Subject screen</h2>
+        <div class="screen-frame"><img src="/screen" alt="Live subject screen"></div>
+        <div class="actions">
+          <button class="primary" onclick="sendCommand({do: 'reward'})">Give reward</button>
+          <button onclick="sendCommand({do: 'pump_on'})">Pump on</button>
+          <button onclick="sendCommand({do: 'pump_off'})">Pump off</button>
+          <button class="danger" onclick="sendCommand({do: 'quit'})">Stop task</button>
+        </div>
 
+        <form id="vars-form" class="form-grid">
+          <div>
+            <label for="default_reward_duration">Manual reward duration (seconds)</label>
+            <input type="number" id="default_reward_duration" name="default_reward_duration" min="0" step="0.1" value="0.5">
+          </div>
+          <button type="submit">Update reward duration</button>
+        </form>
+        <p id="response"></p>
+      </article>
 
-  <p id="response"></p>
-</body>
-<script>
-  var socket = io.connect("http://" + document.domain + ":" + location.port);
+      <article class="card">
+        <h2>Block history</h2>
+        <div class="table-wrap">
+          <table id="block-table">
+            <thead><tr><th>Block #</th><th>Type</th><th>Started</th><th style="text-align:right">Correct</th></tr></thead>
+            <tbody><tr><td colspan="4" class="empty">No completed trials yet</td></tr></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
 
-  function sendCommand(action) {
+  <script>
+    const ONE_MINUTE = 60 * 1000;
+    const ONE_HOUR = 60 * 60 * 1000;
+    const socket = io();
+    let latestTrials = [];
+    let rangeWasEdited = false;
+
+    function sendCommand(action) {
       socket.emit('command', action);
-  }
-  socket.on('response', function(data) {
-      document.getElementById("response").innerText = data.message;
-  });
-
-  function updateDisplay(data) {
-    if (!data || Object.keys(data).length === 0) return;
-    // --- Get the latest trial ---
-    const lastKey = Math.max(...Object.keys(data).map(k => parseInt(k)));
-    const lastTrial = data[lastKey];
-    document.getElementById('trialid').textContent = lastTrial.trialid ?? 'N/A';
-    document.getElementById('condition').textContent = lastTrial.condition ?? 'N/A';
-    document.getElementById('block').textContent = lastTrial.block ?? 'N/A';
-    document.getElementById('block_number').textContent = lastTrial.block_number ?? 'N/A';
-    // --- Aggregate counts per block ---
-    const summary = {};
-    for (const key in data) {
-      const trial = data[key];
-      const b = trial.block_number;
-      if (!summary[b]) {
-        summary[b] = { block: trial.block, correct: 0, error: 0, timeout: 0 };
-      }
-      if (trial.outcome) {
-        if (trial.outcome === 'correct') summary[b].correct++;
-        else if (trial.outcome === 'error') summary[b].error++;
-        else if (trial.outcome === 'timeout') summary[b].timeout++;
-      }
     }
-    // --- Update table ---
-    const tbody = document.querySelector('#summary-table tbody');
-    tbody.innerHTML = '';
-    for (const b in summary) {
-      const s = summary[b];
-      const row = `<tr>
-        <td>${b}</td>
-        <td>${s.block}</td>
-        <td>${s.correct}</td>
-        <td>${s.error}</td>
-        <td>${s.timeout}</td>
-      </tr>`;
-      tbody.innerHTML += row;
-    }
-    tbody.innerHTML += `<tr>
-      <td colspan="2"><b>Total</b></td>
-      <td><b>${Object.values(summary).reduce((a,b) => a + b.correct, 0)}</b></td>
-      <td><b>${Object.values(summary).reduce((a,b) => a + b.error, 0)}</b></td>
-      <td><b>${Object.values(summary).reduce((a,b) => a + b.timeout, 0)}</b></td>
-    </tr>`;
-    // updatePlot(data);
-  }
 
-  function fetchBehaviour() {
-      fetch('/behaviour_summary')
-      .then(response=>response.json())
-      .then(data => {
-          updateDisplay(data)
-      })
-  }
-  
-  // --- Variables update form handler ---
-  (function() {
-    const varsForm = document.getElementById('vars-form');
-    if (!varsForm) return;
-    varsForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      const formData = new FormData(varsForm);
-      const variables = {};
-      for (const [key, value] of formData.entries()) {
-        const trimmed = (value || '').toString().trim();
-        if (trimmed.includes(',')) {
-          // Handle as array
-          const arr = trimmed.split(',').map(item => {
-            const trimmed_item = item.trim();
-            const num = Number(trimmed_item);
-            return (trimmed_item !== '' && !isNaN(num)) ? num : trimmed_item;
-          });
-          variables[key] = arr;
-          continue;
+    function parseTrialTime(trial) {
+      if (!trial || !trial.date || !trial.time) return null;
+      const parts = String(trial.date).split('-').map(Number);
+      const time = String(trial.time).split(':');
+      if (parts.length !== 3 || time.length < 2) return null;
+      const seconds = Number(time[2] || 0);
+      const wholeSeconds = Math.floor(seconds);
+      const milliseconds = Math.round((seconds - wholeSeconds) * 1000);
+      const value = new Date(parts[0], parts[1] - 1, parts[2], Number(time[0]), Number(time[1]), wholeSeconds, milliseconds);
+      return Number.isNaN(value.getTime()) ? null : value;
+    }
+
+    function orderedTrials(data) {
+      return Object.values(data || {})
+        .map(trial => ({...trial, _time: parseTrialTime(trial)}))
+        .sort((a, b) => {
+          if (a._time && b._time) return a._time - b._time;
+          return Number(a.trialid || 0) - Number(b.trialid || 0);
+        });
+    }
+
+    function formatTime(date) {
+      return date ? date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : '—';
+    }
+
+    function toDateTimeLocal(date) {
+      const pad = value => String(value).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+        + `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    }
+
+    function updateDefaultRange(trials) {
+      if (rangeWasEdited) return;
+      const timedTrials = trials.filter(trial => trial._time);
+      if (timedTrials.length === 0) return;
+      document.getElementById('range-start').value = toDateTimeLocal(timedTrials[0]._time);
+      document.getElementById('range-end').value = toDateTimeLocal(timedTrials.at(-1)._time);
+    }
+
+    function updateDisplay(data) {
+      const trials = orderedTrials(data);
+      latestTrials = trials;
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const correct = trials.filter(trial => trial.outcome === 'correct');
+      const correctToday = correct.filter(trial => trial._time && trial._time >= todayStart && trial._time <= now).length;
+      const correctHour = correct.filter(trial => trial._time && trial._time >= new Date(now - ONE_HOUR) && trial._time <= now).length;
+
+      document.getElementById('correct-today').textContent = correctToday;
+      document.getElementById('correct-hour').textContent = correctHour;
+
+      const latest = trials.at(-1);
+      const lastCorrect = correct.at(-1);
+      document.getElementById('current-block').textContent = latest?.block ?? '—';
+      document.getElementById('current-block-detail').textContent = latest
+        ? `Block #${latest.block_number ?? '—'} · condition ${latest.condition ?? '—'}`
+        : 'No trials yet';
+      document.getElementById('last-correct').textContent = lastCorrect ? formatTime(lastCorrect._time) : '—';
+      document.getElementById('last-trial-detail').textContent = latest
+        ? `Latest trial #${latest.trialid ?? '—'} at ${formatTime(latest._time)}`
+        : 'No trials yet';
+
+      updateBlockTable(trials);
+      updateDefaultRange(trials);
+      updateActivityPlot(trials);
+    }
+
+    function updateBlockTable(trials) {
+      const blocks = new Map();
+      for (const trial of trials) {
+        const key = String(trial.block_number ?? 'unknown');
+        if (!blocks.has(key)) {
+          blocks.set(key, {number: trial.block_number, type: trial.block, started: trial._time, correct: 0});
         }
-        const num = Number(trimmed);
-        variables[key] = (trimmed !== '' && !isNaN(num)) ? num : value;
+        if (trial.outcome === 'correct') blocks.get(key).correct += 1;
       }
-      sendCommand({ do: 'update_variables', variables: variables });
+
+      const tbody = document.querySelector('#block-table tbody');
+      if (blocks.size === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty">No completed trials yet</td></tr>';
+        return;
+      }
+      tbody.innerHTML = [...blocks.values()].reverse().map(block => `
+        <tr>
+          <td>${block.number ?? '—'}</td>
+          <td>${block.type ?? '—'}</td>
+          <td>${formatTime(block.started)}</td>
+          <td class="numeric">${block.correct}</td>
+        </tr>`).join('');
+    }
+
+    function updateActivityPlot(trials) {
+      const intervalInput = document.getElementById('interval-minutes');
+      const intervalMinutes = Math.max(1, Number(intervalInput.value) || 15);
+      intervalInput.value = intervalMinutes;
+      document.getElementById('activity-title').textContent = `Correct trials per ${intervalMinutes} minutes`;
+
+      const timedTrials = trials.filter(trial => trial._time);
+      const selectedStart = new Date(document.getElementById('range-start').value);
+      const selectedEnd = new Date(document.getElementById('range-end').value);
+      const windowStart = Number.isNaN(selectedStart.getTime()) ? timedTrials[0]?._time : selectedStart;
+      const dataEnd = Number.isNaN(selectedEnd.getTime()) ? timedTrials.at(-1)?._time : selectedEnd;
+      if (!windowStart || !dataEnd || dataEnd < windowStart) {
+        Plotly.react('activity-plot', [], {
+          annotations: [{text: timedTrials.length ? 'The end must be after the start.' : 'No trial data yet.', showarrow: false}],
+          paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+          font: {color: '#96a2b8'}, xaxis: {visible: false}, yaxis: {visible: false}
+        }, {responsive: true, displayModeBar: false});
+        return;
+      }
+
+      const interval = intervalMinutes * ONE_MINUTE;
+      const windowEnd = dataEnd.getTime() === windowStart.getTime()
+        ? new Date(windowStart.getTime() + interval)
+        : dataEnd;
+      const x = [];
+      const y = [];
+      for (let time = windowStart.getTime(); time < windowEnd.getTime(); time += interval) {
+        x.push(new Date(time + interval / 2));
+        y.push(0);
+      }
+
+      const recent = timedTrials.filter(trial => trial._time >= windowStart && trial._time <= dataEnd);
+      for (const trial of recent) {
+        if (trial.outcome !== 'correct') continue;
+        const index = Math.min(y.length - 1, Math.floor((trial._time.getTime() - windowStart.getTime()) / interval));
+        if (index >= 0) y[index] += 1;
+      }
+
+      const blockChanges = [];
+      let previousType;
+      for (const trial of recent) {
+        const type = String(trial.block ?? '—');
+        if (previousType !== undefined && type !== previousType) {
+          blockChanges.push({time: trial._time, type, number: trial.block_number});
+        }
+        previousType = type;
+      }
+
+      const shapes = blockChanges.map(change => ({
+        type: 'line', x0: change.time, x1: change.time, y0: 0, y1: 1, yref: 'paper',
+        line: {color: '#f5c26b', width: 1.5, dash: 'dot'}
+      }));
+      const annotations = blockChanges.map((change, index) => ({
+        x: change.time, y: 1, yref: 'paper', text: `Block ${change.type}`, showarrow: false,
+        textangle: -90, xanchor: 'left', yanchor: 'top', yshift: -5 - (index % 2) * 48,
+        font: {size: 10, color: '#f5c26b'}, bgcolor: 'rgba(11,16,32,0.75)'
+      }));
+
+      Plotly.react('activity-plot', [{
+        x, y, type: 'bar', name: 'Correct trials',
+        marker: {color: '#54d49a', line: {color: '#78e7b4', width: 0.5}},
+        hovertemplate: '%{x|%a %H:%M}<br><b>%{y} correct</b><extra></extra>'
+      }], {
+        margin: {l: 48, r: 20, t: 12, b: 48},
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+        font: {color: '#96a2b8', family: 'Inter, system-ui, sans-serif'},
+        bargap: 0.12,
+        xaxis: {range: [windowStart, windowEnd], fixedrange: true, gridcolor: '#24304a', tickformat: '%H:%M\n%a', zeroline: false},
+        yaxis: {rangemode: 'tozero', fixedrange: true, dtick: 1, title: {text: 'Correct trials'}, gridcolor: '#24304a', zerolinecolor: '#394760'},
+        shapes, annotations,
+        showlegend: false
+      }, {responsive: true, displayModeBar: false});
+    }
+
+    function fetchBehaviour() {
+      fetch('/behaviour_summary')
+        .then(response => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.json();
+        })
+        .then(updateDisplay)
+        .catch(error => {
+          document.getElementById('response').textContent = `Could not load trial data: ${error.message}`;
+        });
+    }
+
+    socket.on('connect', () => {
+      document.getElementById('live-dot').classList.remove('offline');
+      document.getElementById('connection-state').textContent = 'Live';
+      fetchBehaviour();
     });
-  })();
-    
-  socket.on('trial_end', function(data) {
-      fetchBehaviour()
-  })
-  fetchBehaviour()
-</script>
+    socket.on('disconnect', () => {
+      document.getElementById('live-dot').classList.add('offline');
+      document.getElementById('connection-state').textContent = 'Reconnecting…';
+    });
+    socket.on('response', data => {
+      document.getElementById('response').textContent = data.message || '';
+    });
+    socket.on('trial_end', fetchBehaviour);
+
+    document.getElementById('vars-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const rewardDuration = Number(document.getElementById('default_reward_duration').value);
+      sendCommand({
+        do: 'update_variables',
+        variables: {default_reward_duration: rewardDuration}
+      });
+    });
+
+    document.getElementById('interval-minutes').addEventListener('change', () => {
+      updateActivityPlot(latestTrials);
+    });
+    for (const id of ['range-start', 'range-end']) {
+      document.getElementById(id).addEventListener('change', () => {
+        rangeWasEdited = true;
+        updateActivityPlot(latestTrials);
+      });
+    }
+
+    fetchBehaviour();
+    setInterval(fetchBehaviour, 60 * 1000);
+  </script>
+</body>
 </html>
